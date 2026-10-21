@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/zyy/anaconda3/bin/python3
 
 from Xlib.display import Display
 from Xlib import X
@@ -45,6 +45,12 @@ def catlock():
                         return
 
 
+# 注意：必须使用系统自带、带 dconf 模块的 /usr/bin/gsettings。
+# anaconda 等第三方 Python 环境的 gsettings 缺少 dconf GIO 模块，
+# 会静默回退到 keyfile 后端（~/.config/glib-2.0/settings/keyfile），
+# 导致 GNOME（读 dconf 数据库）看不到注册的快捷键。
+GSETTINGS = "/usr/bin/gsettings"
+
 # https://askubuntu.com/a/597414
 def set_keyboard_shortcut(name, command, binding):
     # defining keys & strings to be used
@@ -55,8 +61,11 @@ def set_keyboard_shortcut(name, command, binding):
 
     # get the current list of custom shortcuts
     current = subprocess.check_output(
-        ["/bin/bash", "-c", "gsettings get " + key]
-    ).decode("utf-8")
+        ["/bin/bash", "-c", GSETTINGS + " get " + key]
+    ).decode("utf-8").strip()
+    # gsettings 对空数组返回 "@as []"（GVariant 类型注解），需剥离前缀才能被 literal_eval 解析
+    if current.startswith("@as "):
+        current = current[len("@as "):]
     current = ast.literal_eval(current)
     # make sure the additional keybinding mention is no duplicate
     n = 1
@@ -70,10 +79,10 @@ def set_keyboard_shortcut(name, command, binding):
     current.append(new)
 
     # create the shortcut, set the name, command and shortcut key
-    cmd1 = "gsettings set {}{} name '{}'".format(subkey, new, name)
-    cmd2 = "gsettings set {}{} command '{}'".format(subkey, new, command)
-    cmd3 = "gsettings set {}{} binding '{}'".format(subkey, new, binding)
-    cmd_ = 'gsettings set {} "{}"'.format(key, str(current))
+    cmd1 = "{} set {}{} name '{}'".format(GSETTINGS, subkey, new, name)
+    cmd2 = "{} set {}{} command '{}'".format(GSETTINGS, subkey, new, command)
+    cmd3 = "{} set {}{} binding '{}'".format(GSETTINGS, subkey, new, binding)
+    cmd_ = '{} set {} "{}"'.format(GSETTINGS, key, str(current))
 
     for cmd in [cmd1, cmd2, cmd3, cmd_]:
         subprocess.call(["/bin/bash", "-c", cmd])
